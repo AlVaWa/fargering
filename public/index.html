@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="nn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f5f4a">
+  <title>Fargering</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Fargering</h1>
+    <button id="userBtn" class="chip" type="button">Logg inn</button>
+  </header>
+
+  <main>
+    <!-- SØK -->
+    <section id="view-search" class="view active">
+      <form id="searchForm" class="search">
+        <input id="q" name="q" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="Kode, t.d. J1K0" aria-label="Søk etter ring">
+        <button class="btn primary" type="submit">Søk</button>
+      </form>
+      <p class="hint">Søk på fargekode (J1K0), full kode (LBNW(J1K0);RBM) eller metallringnummer. Prøv <a href="#" data-try="J1K0">J1K0</a> eller <a href="#" data-try="JJK8">JJK8</a>.</p>
+      <div id="results"></div>
+    </section>
+
+    <!-- NY AVLESING -->
+    <section id="view-new" class="view">
+      <form id="readForm" class="card form">
+        <h2>Ny avlesing</h2>
+
+        <label class="field">
+          <span>Ringtype</span>
+          <button type="button" id="pickType" class="picker">Vel prosjekt og ringtype</button>
+          <input type="hidden" name="ringType">
+          <input type="hidden" name="project">
+        </label>
+
+        <label class="field">
+          <span>Kode på ringen</span>
+          <input name="code" class="code-input" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="J1K0">
+        </label>
+        <div id="known" class="known" hidden></div>
+
+        <div class="row">
+          <label class="field"><span>Dato</span><input type="date" name="date" required></label>
+          <label class="field"><span>Klokke</span><input type="time" name="time"></label>
+        </div>
+
+        <div class="field">
+          <span>Stad</span>
+          <div id="readMap" class="map small"></div>
+          <div class="row">
+            <button type="button" id="gpsBtn" class="btn">📍 Bruk GPS</button>
+            <span id="gpsInfo" class="muted">Trykk på kartet for å flytte</span>
+          </div>
+          <input name="place" placeholder="Stadnamn, t.d. Åvik, Lindesnes">
+          <input type="hidden" name="lat"><input type="hidden" name="lon"><input type="hidden" name="acc">
+        </div>
+
+        <label class="field"><span>Art</span><input name="species" list="speciesList" placeholder="Fylt ut om fuglen er kjend"></label>
+        <datalist id="speciesList"></datalist>
+
+        <div class="field">
+          <span>Tilstand</span>
+          <div class="seg" data-name="condition">
+            <button type="button" data-v="levande" class="on">Levande</button>
+            <button type="button" data-v="død">Død</button>
+            <button type="button" data-v="skadd">Skadd</button>
+          </div>
+        </div>
+        <div class="row">
+          <label class="field"><span>Alder</span>
+            <select name="age"><option value="">Ukjent</option><option>Pull/unge</option><option>1K (årsunge)</option><option>2K</option><option>3K</option><option>Vaksen</option></select>
+          </label>
+          <label class="field"><span>Kjønn</span>
+            <select name="sex"><option value="">Ukjent</option><option>Hann</option><option>Ho</option></select>
+          </label>
+        </div>
+        <label class="field"><span>Kommentar</span><textarea name="comment" rows="3" placeholder="Atferd, flokkstorleik, andre ringar …"></textarea></label>
+
+        <button class="btn primary big" type="submit">Lagre avlesing</button>
+        <p class="muted small">Lagrast på telefonen. Innsending til ringmerking.no kjem når skjemaet er kartlagt.</p>
+      </form>
+    </section>
+
+    <!-- MINE -->
+    <section id="view-mine" class="view">
+      <div class="row between">
+        <h2>Mine avlesingar</h2>
+        <button id="exportBtn" class="btn" type="button">Eksporter CSV</button>
+      </div>
+      <div id="mineMap" class="map"></div>
+      <div id="mineList"></div>
+    </section>
+
+    <!-- PROSJEKT -->
+    <section id="view-projects" class="view">
+      <h2>Prosjekt</h2>
+      <input id="projFilter" class="filter" placeholder="Filtrer, t.d. måke, svane …">
+      <div id="projList"></div>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-view="search" class="on"><span>🔍</span>Søk</button>
+    <button data-view="new"><span>➕</span>Avlesing</button>
+    <button data-view="mine"><span>📋</span>Mine</button>
+    <button data-view="projects"><span>🐦</span>Prosjekt</button>
+  </nav>
+
+  <!-- Botnark (detaljar, ringtypeval, innlogging) -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-body">
+      <button class="sheet-close" data-close aria-label="Lukk">✕</button>
+      <div id="sheetContent"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
