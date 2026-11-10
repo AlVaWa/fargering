@@ -397,14 +397,22 @@ $('#exportBtn').addEventListener('click', () => {
 
 // ---------- Innlogging ----------
 let me = null;
+/** «Etternavn, Fornavn» -> { full: «Fornavn Etternavn», first: «Fornavn» } */
+function displayName(raw) {
+  const [last, first] = String(raw ?? '').split(',').map((s) => s.trim());
+  if (!first) return { full: last, first: last };
+  return { full: `${first} ${last}`, first: first.split(' ')[0] };
+}
 async function refreshMe() {
   try { me = (await api('/api/me')).user; } catch { me = null; }
-  $('#userBtn').textContent = me ? me.email.split('@')[0] : 'Logg inn';
+  const name = myNames()[0];
+  $('#userBtn').textContent = me ? (name ? displayName(name).first : me.email.split('@')[0]) : 'Logg inn';
 }
 $('#userBtn').addEventListener('click', () => {
   if (me) {
     const names = myNames();
-    openSheet(`<h2>Innlogga</h2><p>${esc(me.email)}</p>
+    const title = names.length ? displayName(names[0]).full : 'Innlogga';
+    openSheet(`<h2>${esc(title)}</h2><p class="muted small">Innlogga som ${esc(me.email)}</p>
       <div class="card" style="margin-top:12px"><b>⭐ Dine avlesingar</b>
         <p class="muted small">${names.length ? `Markerer avlesingar frå: ${esc(names.join(' · '))}` : 'Legg inn namnet ditt, så blir dine avlesingar markerte med eigen farge.'}</p>
         <button class="btn" id="meBtn" type="button">${names.length ? 'Endre namn' : 'Legg inn namn'}</button></div>
@@ -429,7 +437,11 @@ $('#userBtn').addEventListener('click', () => {
     $('#loginMsg').textContent = 'Loggar inn …';
     try {
       const r = await api('/api/login', { method: 'POST', body: JSON.stringify(fd) });
-      if (r.loggedIn) { await refreshMe(); closeSheet(); toast('Innlogga'); }
+      if (r.loggedIn) {
+        await refreshMe();
+        if (myNames().length) { closeSheet(); toast(`Hei, ${displayName(myNames()[0]).first}!`); }
+        else openMeSettings(); // spør om namn første gong, så det kan visast i staden for e-post
+      }
       else $('#loginMsg').textContent = r.hint ?? 'Innlogging feila';
     } catch (err) { $('#loginMsg').textContent = err.message; }
   });
