@@ -12,7 +12,8 @@ const api = async (path, opts = {}) => {
 const imgUrl = (p) => `/img?p=${encodeURIComponent(p)}`;
 const ringImg = (fullCode) => imgUrl(`pics/crring.asp?FK=${encodeURIComponent(fullCode)}&rotation=N`);
 const photoUrl = (bid, w = 800) => imgUrl(`visbilde.asp?BID=${bid}&maxw=${w}&MaxH=${w}&VisF=ON&XIF=ON`);
-const fmtDate = (iso) => (iso ? new Date(iso + 'T12:00').toLocaleDateString(['nn-NO', 'nb-NO', 'no'], { day: 'numeric', month: 'short', year: 'numeric' }) : '–');
+const MINE_COLOR = '#2f6fd6'; // dine eigne avlesingar (blå), skil seg frå grøn/oransje/raud
+const fmtDate =(iso) => (iso ? new Date(iso + 'T12:00').toLocaleDateString(['nn-NO', 'nb-NO', 'no'], { day: 'numeric', month: 'short', year: 'numeric' }) : '–');
 
 function toast(msg) {
   const t = $('#toast');
@@ -57,7 +58,20 @@ function closeSheet() { $('#sheet').hidden = true; }
 $('#sheet').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeSheet(); });
 
 // ---------- Søk ----------
+// ---------- «Meg»: namn som skal markerast som eigne avlesingar ----------
+// Observatørar står som «Etternavn, Fornavn», i detaljvisinga med «(nr/gruppe)» bak.
+const normName = (s) => String(s ?? '').replace(/\(.*$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+const myNames = () => store.get('myNames', []);
+function setMyNames(list) {
+  const seen = new Set();
+  store.set('myNames', list.map((s) => s.replace(/\(.*$/, '').trim()).filter((s) => s && !seen.has(normName(s)) && seen.add(normName(s))));
+}
+const isMe = (name) => myNames().some((n) => normName(n) === normName(name));
+const isMine = (e) => e.observers.some(isMe);
+
 let lastBirds = [];
+let lastStatus = null;
+let lastQ = '';
 async function doSearch(q) {
   q = q.trim().toUpperCase();
   if (!q) return;
@@ -66,14 +80,19 @@ async function doSearch(q) {
   out.innerHTML = '<div class="spinner">Søkjer …</div>';
   try {
     const r = await api(`/api/search?q=${encodeURIComponent(q)}`);
-    lastBirds = r.birds;
-    if (r.status === 'none') out.innerHTML = `<div class="card"><b>Ingen treff på ${esc(q)}.</b><p class="muted">Sjekk fargen på ringen og at koden er rett lesen (0/O, 1/I, 8/B).</p><button class="btn primary" data-new="${esc(q)}">Registrer avlesing likevel</button></div>`;
-    else if (r.status === 'noaccess') out.innerHTML = `<div class="card notice"><b>Ringen ${esc(q)} finst i databasen.</b><p>Historikken blir synleg når du har rapportert ei avlesing av fuglen.</p><button class="btn primary" data-new="${esc(q)}">Registrer avlesing</button></div>`;
-    else out.innerHTML = r.birds.map(birdCard).join('');
-    r.birds.forEach((b, i) => drawBirdMap(`bmap${i}`, b));
+    lastBirds = r.birds; lastStatus = r.status; lastQ = q;
+    renderResults();
   } catch (e) {
     out.innerHTML = `<div class="card notice">Klarte ikkje å søkje: ${esc(e.message)}</div>`;
   }
+}
+
+function renderResults() {
+  const out = $('#results'), q = lastQ;
+  if (lastStatus === 'none') out.innerHTML = `<div class="card"><b>Ingen treff på ${esc(q)}.</b><p class="muted">Sjekk fargen på ringen og at koden er rett lesen (0/O, 1/I, 8/B).</p><button class="btn primary" data-new="${esc(q)}">Registrer avlesing likevel</button></div>`;
+  else if (lastStatus === 'noaccess') out.innerHTML = `<div class="card notice"><b>Ringen ${esc(q)} finst i databasen.</b><p>Historikken blir synleg når du har rapportert ei avlesing av fuglen.</p><button class="btn primary" data-new="${esc(q)}">Registrer avlesing</button></div>`;
+  else out.innerHTML = lastBirds.map(birdCard).join('');
+  lastBirds.forEach((b, i) => drawBirdMap(`bmap${i}`, b));
 }
 
 function birdStats(b) {
@@ -81,7 +100,8 @@ function birdStats(b) {
   const maxDist = Math.max(0, ...ev.map((e) => e.distanceKm ?? 0));
   const first = ev[0]?.date, last = ev.at(-1)?.date;
   const years = first && last ? ((new Date(last) - new Date(first)) / 3.15576e10).toFixed(1) : '–';
-  return { n: ev.length, maxDist, years };
+  const mine = ev.filter(isMine);
+  return { n: ev.length, maxDist, years, mine: mine.length, lastMine: mine.at(-1)?.date };
 }
 
 function birdCard(b, i) {
@@ -102,14 +122,16 @@ function birdCard(b, i) {
       <div class="stat"><b>${s.maxDist.toLocaleString('nn-NO')}</b><span>km lengst unna</span></div>
       <div class="stat"><b>${s.years}</b><span>år sporing</span></div>
     </div>
+    ${s.mine ? `<div class="mine-note">⭐ Du har registrert denne fuglen <b>${s.mine} ${s.mine === 1 ? 'gong' : 'gonger'}</b>, sist ${fmtDate(s.lastMine)}.</div>` : ''}
     <div id="bmap${i}" class="map"></div>
+    <div class="legend"><span><i class="dot mark"></i>Merka</span><span><i class="dot"></i>Andre</span><span><i class="dot mine"></i>Dine</span><span><i class="dot dead"></i>Død</span></div>
     <button class="btn primary big" data-new="${esc(b.code ?? '')}" data-species="${esc(b.species ?? '')}" data-bird="${i}">➕ Eg har sett denne fuglen</button>
     <h3 style="margin:16px 0 4px">Historikk</h3>
     <ul class="timeline">${evs.map((e) => `
-      <li class="${e.marking ? 'mark' : ''} ${e.dead ? 'dead' : ''}" data-ev="${esc(e.id)}">
-        <div class="when">${fmtDate(e.date)}${e.marking ? ' · Merka' : ''}${e.dead ? ' · Død' : ''}</div>
+      <li class="${e.marking ? 'mark' : ''} ${e.dead ? 'dead' : ''} ${isMine(e) ? 'mine' : ''}" data-ev="${esc(e.id)}">
+        <div class="when">${fmtDate(e.date)}${e.marking ? ' · Merka' : ''}${e.dead ? ' · Død' : ''}${isMine(e) ? ' <span class="me-tag">Di avlesing</span>' : ''}</div>
         <div class="where">${esc(e.place)}</div>
-        <div class="meta">${e.distanceKm != null ? `${e.distanceKm.toLocaleString('nn-NO')} km frå merkestad · ` : ''}${esc(e.observers.join(', '))}${e.kind && !e.marking && e.kind !== 'Godkjente funndata' ? ` · ${esc(e.kind)}` : ''}</div>
+        <div class="meta">${e.distanceKm != null ? `${e.distanceKm.toLocaleString('nn-NO')} km frå merkestad · ` : ''}${e.observers.map((o) => (isMe(o) ? `<b>${esc(o)}</b>` : esc(o))).join(', ')}${e.kind && !e.marking && e.kind !== 'Godkjente funndata' ? ` · ${esc(e.kind)}` : ''}</div>
         ${e.photos.length ? `<div class="thumbs">${e.photos.map((p) => `<img loading="lazy" src="${photoUrl(p, 200)}" alt="Foto">`).join('')}</div>` : ''}
       </li>`).join('')}
     </ul>
@@ -124,11 +146,14 @@ function drawBirdMap(id, b) {
   const m = makeMap(el);
   const ll = pts.map((e) => [e.lat, e.lon]);
   L.polyline(ll, { color: '#1f5f4a', weight: 2, opacity: .6, dashArray: '4 6' }).addTo(m);
-  pts.forEach((e, i) => L.circleMarker([e.lat, e.lon], {
-    radius: i === pts.length - 1 ? 9 : 6,
-    color: '#fff', weight: 2,
-    fillColor: e.marking ? '#d48a00' : e.dead ? '#a3312b' : '#1f5f4a', fillOpacity: 1,
-  }).bindPopup(`<b>${fmtDate(e.date)}</b><br>${esc(e.place)}`).addTo(m));
+  pts.forEach((e, i) => {
+    const mine = isMine(e);
+    L.circleMarker([e.lat, e.lon], {
+      radius: mine || i === pts.length - 1 ? 9 : 6,
+      color: '#fff', weight: 2,
+      fillColor: e.marking ? '#d48a00' : e.dead ? '#a3312b' : mine ? MINE_COLOR : '#1f5f4a', fillOpacity: 1,
+    }).bindPopup(`<b>${fmtDate(e.date)}</b>${mine ? ' ⭐ Di avlesing' : ''}<br>${esc(e.place)}`).addTo(m);
+  });
   m.fitBounds(L.latLngBounds(ll).pad(0.3), { maxZoom: 11 });
 }
 
@@ -137,10 +162,33 @@ async function showEvent(id) {
   try {
     const d = await api(`/api/event/${id}`);
     const ev = lastBirds.flatMap((b) => b.events).find((e) => e.id === id);
+    const obs = (d.fields.find((f) => f.label.startsWith('Observat'))?.value ?? '').split('\n').filter(Boolean);
     openSheet(`<h2>Registrering</h2>
       ${ev?.photos?.length ? `<div class="thumbs">${ev.photos.map((p) => `<img src="${photoUrl(p, 600)}" style="height:auto;width:100%" alt="Foto">`).join('')}</div>` : ''}
-      <dl class="kv">${d.fields.filter((f) => f.value).map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>`);
+      ${obs.length ? `<div class="obs-list"><span class="muted small">Observatørar – trykk for å markere deg sjølv:</span>
+        ${obs.map((o) => `<button type="button" class="obs ${isMe(o) ? 'on' : ''}" data-me="${esc(o.replace(/\s*\(.*$/, ''))}">${isMe(o) ? '⭐ ' : ''}${esc(o.replace(/\s*\(.*$/, ''))}<small>${isMe(o) ? 'Dette er meg' : 'Er dette deg?'}</small></button>`).join('')}</div>` : ''}
+      <dl class="kv">${d.fields.filter((f) => f.value && !f.label.startsWith('Observat')).map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>`);
+    $$('#sheetContent [data-me]').forEach((b) => b.addEventListener('click', () => {
+      const n = b.dataset.me;
+      setMyNames(isMe(n) ? myNames().filter((x) => normName(x) !== normName(n)) : [...myNames(), n]);
+      toast(isMe(n) ? `«${n}» er markert som deg` : `«${n}» er ikkje lenger markert`);
+      renderResults();
+      showEvent(id);
+    }));
   } catch (e) { openSheet(`<p class="notice">${esc(e.message)}</p>`); }
+}
+
+function openMeSettings() {
+  openSheet(`<h2>Namnet ditt</h2>
+    <p class="muted small">Skriv namnet slik det står på ringmerking.no («Etternavn, Fornavn»), eitt per linje. Legg gjerne til dei du les av saman med. Avlesingar med desse namna blir markerte med ⭐.</p>
+    <label class="field"><span>Namn</span><textarea id="myNamesInput" rows="4" placeholder="Nordmann, Ola">${esc(myNames().join('\n'))}</textarea></label>
+    <button class="btn primary big" id="saveNames" type="button">Lagre</button>
+    <p class="muted small">Tips: Du kan òg trykkje på ei registrering og velje «Er dette deg?» på namnet ditt.</p>`);
+  $('#saveNames').addEventListener('click', () => {
+    setMyNames($('#myNamesInput').value.split('\n'));
+    closeSheet(); renderResults(); refreshMe();
+    toast('Lagra');
+  });
 }
 
 $('#searchForm').addEventListener('submit', (e) => { e.preventDefault(); doSearch($('#q').value); });
@@ -355,7 +403,13 @@ async function refreshMe() {
 }
 $('#userBtn').addEventListener('click', () => {
   if (me) {
-    openSheet(`<h2>Innlogga</h2><p>${esc(me.email)}</p><button class="btn" id="logoutBtn">Logg ut</button>`);
+    const names = myNames();
+    openSheet(`<h2>Innlogga</h2><p>${esc(me.email)}</p>
+      <div class="card" style="margin-top:12px"><b>⭐ Dine avlesingar</b>
+        <p class="muted small">${names.length ? `Markerer avlesingar frå: ${esc(names.join(' · '))}` : 'Legg inn namnet ditt, så blir dine avlesingar markerte med eigen farge.'}</p>
+        <button class="btn" id="meBtn" type="button">${names.length ? 'Endre namn' : 'Legg inn namn'}</button></div>
+      <button class="btn" id="logoutBtn">Logg ut</button>`);
+    $('#meBtn').onclick = openMeSettings;
     $('#logoutBtn').onclick = async () => { await api('/api/logout', { method: 'POST' }); await refreshMe(); closeSheet(); };
     return;
   }
@@ -366,7 +420,9 @@ $('#userBtn').addEventListener('click', () => {
       <label class="field"><span>Passord</span><input name="password" type="password" autocomplete="current-password" required></label>
       <button class="btn primary big">Logg inn</button>
       <p id="loginMsg" class="muted"></p>
-    </form>`);
+    </form>
+    <button class="btn" id="meBtn" type="button">⭐ ${myNames().length ? 'Endre namnet ditt' : 'Legg inn namnet ditt'}</button>`);
+  $('#meBtn').onclick = openMeSettings;
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));

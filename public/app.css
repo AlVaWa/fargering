@@ -9,6 +9,8 @@
   --warn: #9a5b00;
   --warn-bg: #fff4e0;
   --bad: #a3312b;
+  --mine: #2f6fd6;
+  --mine-bg: #e8f0fd;
   --radius: 14px;
   --tabs-h: 64px;
   color-scheme: light;
@@ -17,12 +19,14 @@
   :root:not([data-theme="light"]) {
     --bg: #111613; --card: #1a211d; --text: #e6ece8; --muted: #9aa8a0; --line: #2b3530;
     --brand: #5cc29b; --brand-2: #1f2f28; --warn: #f0b04a; --warn-bg: #33270f; --bad: #ff8a80;
+    --mine: #7aa7ff; --mine-bg: #18243a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #111613; --card: #1a211d; --text: #e6ece8; --muted: #9aa8a0; --line: #2b3530;
   --brand: #5cc29b; --brand-2: #1f2f28; --warn: #f0b04a; --warn-bg: #33270f; --bad: #ff8a80;
+  --mine: #7aa7ff; --mine-bg: #18243a;
   color-scheme: dark;
 }
 
@@ -159,3 +163,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(var(--tabs-h) + 16px + env(safe-area-inset-bottom)); z-index: 1100; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 10px; text-align: center; max-width: 480px; margin: 0 auto; }
 .spinner { padding: 30px; text-align: center; color: var(--muted); }
+
+/* Dine eigne avlesingar */
+.timeline li.mine { background: var(--mine-bg); border-radius: 10px; margin: 2px -8px; padding-left: 30px; padding-right: 8px; }
+.timeline li.mine::before { background: var(--mine); left: 12px; width: 12px; height: 12px; box-shadow: 0 0 0 3px var(--mine-bg); }
+.me-tag { display: inline-block; font-size: .72rem; font-weight: 700; color: #fff; background: var(--mine); border-radius: 99px; padding: 1px 8px; margin-left: 4px; vertical-align: 1px; }
+.mine-note { background: var(--mine-bg); color: var(--text); border-left: 4px solid var(--mine); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; font-size: .92rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); margin: -4px 0 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
+.dot.mark { background: #d48a00; } .dot.mine { background: var(--mine); } .dot.dead { background: var(--bad); }
+.obs-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
+.obs { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; cursor: pointer; }
+.obs small { color: var(--muted); font-size: .78rem; white-space: nowrap; }
+.obs.on { background: var(--mine-bg); border-color: var(--mine); font-weight: 600; }
+.obs.on small { color: var(--mine); }
